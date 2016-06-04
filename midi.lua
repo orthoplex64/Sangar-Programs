@@ -357,7 +357,7 @@ end
 local channels = {n=0}
 local lastTick, lastTime = 0, computer.uptime()
 print("Press Ctrl+C to exit.")
-for tick = 1, totalLength do
+for tick = 0, totalLength do
   local hasEvent = false
   for _, track in ipairs(tracks) do
     if track[tick] then
