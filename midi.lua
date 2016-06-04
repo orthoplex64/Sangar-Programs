@@ -30,19 +30,19 @@ for address in component.list("note_block") do
   end)
 end
 if #instruments == 0 then
-  local function beepableFrequency(midiCode)
+  local function cappedFrequency(midiCode, min, max)
     local freq = note.freq(midiCode)
     if freq <= 0 then error("Nonpositive frequency") end
     -- shift it by octaves so we at least get the right pitch
-    while freq < 20 do freq = freq * 2 end
-    while freq > 2000 do freq = freq / 2 end
+    while freq < min do freq = freq * 2 end
+    while freq > max do freq = freq / 2 end
     return freq
   end
   if component.isAvailable("beep") then
     print("No note blocks found, falling back to beep card.")
     local notes = {}
     instruments[1] = function(note, duration)
-      notes[beepableFrequency(note)] = duration or 0.05
+      notes[cappedFrequency(note, 20, 2000)] = duration or 0.05
     end
     instruments.flush = function()
       component.beep.beep(notes)
@@ -50,10 +50,26 @@ if #instruments == 0 then
         notes[k] = nil
       end
     end
-  else
-    print("No note blocks or beep card found, falling back to built-in speaker.")
+  elseif component.isAvailable("skcspeaker") then
+    print("No note blocks or beep card found, falling back to synthetic pronouncer.")
+    local notes = {}
     instruments[1] = function(note, duration)
-      pcall(computer.beep, beepableFrequency(note), duration or 0.05)
+      -- number of "aa"s, not number of seconds
+      duration = duration and math.floor(duration / 0.2) or 1
+      if duration < 1 then duration = 1
+      elseif duration > 20 then duration = 20 end
+      notes[cappedFrequency(note, 50, 500)] = duration
+    end
+    instruments.flush = function()
+      for k, v in pairs(notes) do
+        component.skcspeaker.speak(("-aa"):rep(v), 1, 64, 1, k, 0)
+        notes[k] = nil
+      end
+    end
+  else
+    print("No note blocks or beep card or synthetic pronouncer found, falling back to built-in speaker.")
+    instruments[1] = function(note, duration)
+      pcall(computer.beep, cappedFrequency(note, 20, 2000), duration or 0.05)
       return true -- only one event per tick
     end
   end
@@ -238,7 +254,7 @@ while true do
         end
       elseif event == 0xF1 then -- MIDI time code quarter frame
         parseVarInt(read()) -- not handled
-      elseif event == 0xF2 then -- Song position pointer 
+      elseif event == 0xF2 then -- Song position pointer
         parseVarInt(read(2), 7) -- not handled
       elseif event == 0xF3 then -- Song select
         parseVarInt(read(2), 7) -- not handled
