@@ -191,11 +191,15 @@ while true do
     end
     local currentNoteEvents = {}
     local function noteOn(cursor, channel, note, velocity)
-      track[cursor] = {channel, note, velocity}
+      if type(track[cursor]) == "number" then return end
+      if not track[cursor] then track[cursor] = {} end
+      local event = {channel, note, velocity}
+      table.insert(track[cursor], event)
+      --track[cursor] = {channel, note, velocity}
       if not currentNoteEvents[channel] then
         currentNoteEvents[channel] = {}
       end
-      currentNoteEvents[channel][note] = {event=track[cursor], tick=cursor}
+      currentNoteEvents[channel][note] = {event=event, tick=cursor}
     end
     local function noteOff(cursor, channel, note, velocity)
       if not (currentNoteEvents[channel] and currentNoteEvents[channel][note]) then return end
@@ -383,15 +387,20 @@ for tick = 0, totalLength do
         if type(event) == "number" then
           time.mspb = event
         elseif type(event) == "table" then
-          local channel, note, velocity, duration = table.unpack(event)
-          local instrument
-          if not channels[channel] then
-            channels.n = channels.n + 1
-            channels[channel] = instruments[1 + (channels.n % #instruments)]
+          local breakTrack = false
+          for _, subEvent in ipairs(event) do
+            local channel, note, velocity, duration = table.unpack(subEvent)
+            local instrument
+            if not channels[channel] then
+              channels.n = channels.n + 1
+              channels[channel] = instruments[1 + (channels.n % #instruments)]
+            end
+            if channels[channel](note, duration) then
+              breakTrack = true
+              break
+            end
           end
-          if channels[channel](note, duration) then
-            break
-          end
+          if breakTrack then break end
         end
       end
     end
